@@ -1348,6 +1348,108 @@ namespace beautify{
 				$this->restore_mode();
 			}
 		}
-			
 	}
+
+	class OutputLine{
+		private $_character_count = 0;
+		// use indent_count as a marker for lines that have preserved indentation
+		private $_indent_count = -1;
+
+		private $_items = [];
+		private $_empty = true;
+
+		private $parent;
+
+		public function __construct($parent){
+			$this->parent=$parent;
+		}
+
+		public function set_indent($level) {
+			$this->_character_count = $this->parent->baseIndentLength + $level * $this->parent->indent_length;
+			$this->_indent_count = $level;
+		};
+
+		public function get_character_count() {
+			return $this->_character_count;
+		};
+
+		public function is_empty() {
+			return $this->_empty;
+		};
+
+		public function last() {
+			if (!$this->_empty) {
+				return $this->_items[count($this->_items) - 1];
+			} else {
+				return null;
+			}
+		};
+
+		public function push($input) {
+			$this->_items[]=$input;
+			$this->_character_count += strlen($input);
+			$this->_empty = false;
+		};
+
+		public function pop() {
+			$item = null;
+			if (!$this->_empty) {
+				$item = array_pop($this->_items);
+				$this->_character_count -= strlen(item);
+				$this->_empty = count($this->_items) === 0;
+			}
+			return item;
+		};
+
+		public function remove_indent() {
+			if ($this->_indent_count > 0) {
+				$this->_indent_count -= 1;
+				$this->_character_count -= $this->parent->indent_length;
+			}
+		};
+
+		public function trim() {
+			while ($this->last() === ' ') {
+				array_pop($this->_items);
+				$this->_character_count -= 1;
+			}
+			$this->_empty = count($this->_items) === 0;
+		};
+
+		public function toString() {
+			$result = '';
+			if (!$this._empty) {
+				if ($this->_indent_count >= 0) {
+					$result = $this->parent->indent_cache[$this->_indent_count];
+				}
+				$result += join("",$this->_items);
+			}
+			return result;
+		};
+	}
+	
+	class Output{
+		private $baseIndentString;
+		public $indent_cache = [];
+		public $baseIndentLength;
+		public $indent_length;
+		public $raw = false;
+	
+		private $lines = [];
+		public $indent_string;
+		public $previous_line = null;
+		public $current_line = null;
+		public $space_before_token = false;
+
+		public function __construct($indent_string, $baseIndentString=""){
+			$this->baseIndentString=$baseIndentString;
+			$this->indent_cache=[$baseIndentString];
+			$this->baseIndentLength=strlen($baseIndentString);
+			$this->indent_length=strlen($indent_string);
+
+			$this->indent_string=$indent_string;
+		}
+	}
+	
+	
 }
