@@ -125,15 +125,15 @@ namespace beautify{
 
     const OPERATOR_POSITION_BEFORE_OR_PRESERVE = [OPERATOR_POSITION["before_newline"], OPERATOR_POSITION["preserve_newline"]];
 
-    const MODE = [
-		"BlockStatement"=> 'BlockStatement', // 'BLOCK'
-        "Statement"=> 'Statement', // 'STATEMENT'
-        "ObjectLiteral"=> 'ObjectLiteral', // 'OBJECT',
-        "ArrayLiteral"=> 'ArrayLiteral', //'[EXPRESSION]',
-        "ForInitializer"=> 'ForInitializer', //'(FOR-EXPRESSION)',
-        "Conditional"=> 'Conditional', //'(COND-EXPRESSION)',
-        "Expression"=> 'Expression' //'(EXPRESSION)'
-    ];
+    class MODE{
+		const BlockStatement = 'BlockStatement', // 'BLOCK'
+		Statement = 'Statement', // 'STATEMENT'
+		ObjectLiteral = 'ObjectLiteral', // 'OBJECT',
+		ArrayLiteral = 'ArrayLiteral', //'[EXPRESSION]',
+		ForInitializer = 'ForInitializer', //'(FOR-EXPRESSION)',
+		Conditional = 'Conditional', //'(COND-EXPRESSION)',
+		Expression = 'Expression'; //'(EXPRESSION)'
+	}
 	
 	class Beautifier{
 		/** @var Output */
@@ -251,7 +251,7 @@ namespace beautify{
 
 			$this->flag_store = [];
 
-			$this->set_mode(MODE["BlockStatement"]);
+			$this->set_mode(MODE::BlockStatement);
 
 			$this->js_source_text = $js_source_text;
 		}
@@ -308,9 +308,9 @@ namespace beautify{
 					// The cleanest handling of inline comments is to treat them as though they aren't there.
 					// Just continue formatting and the behavior should be logical.
 					// Also ignore unknown tokens.  Again, this should result in better behavior.
-					handle_token($local_token->comments_before[$i]);
+					$this->handle_token($local_token->comments_before[$i]);
 				}
-                handle_token($local_token);
+				$this->handle_token($local_token);
 
 				$this->last_last_text = $this->flags->last_text;
 				$this->last_type = $local_token->type;
@@ -330,5 +330,460 @@ namespace beautify{
 
 			return $sweet_code;
 		}
+
+		private function handle_token($local_token){
+			$newlines = $local_token->newlines;
+			$keep_whitespace = $this->opt["keep_array_indentation"] && $this->is_array($this->flags->mode);
+
+			if ($keep_whitespace) {
+				for ($i = 0; $i < $newlines; $i += 1) {
+					$this->print_newline($i > 0);
+				}
+            } else {
+				if ($this->opt["max_preserve_newlines"] && $newlines > $this->opt["max_preserve_newlines"]) {
+					$newlines = $this->opt["max_preserve_newlines"];
+				}
+
+				if ($this->opt["preserve_newlines"]) {
+					if ($local_token->newlines > 1) {
+						$this->print_newline();
+						for ($j = 1; $j < $newlines; $j += 1) {
+							$this->print_newline(true);
+						}
+                    }
+				}
+			}
+
+			$this->current_token = $local_token;
+			$this->handlers[$this->current_token->type]();
+		}
+		private function split_linebreaks($s) {
+			//return s.split(/\x0d\x0a|\x0a/);
+			global $allLineBreaks;
+			$s = preg_replace($allLineBreaks->source,'\n',$s);
+			$out = [];
+			$idx = strpos($s,"\n");
+            while ($idx !== -1) {
+				$out[]=substr($s,0,$idx);
+				$s = substr($s,$idx + 1);
+				$idx = strpos($s,"\n");
+			}
+            if (strlen($s)) {
+				$out[]=$s;
+			}
+            return $out;
+        }
+
+		private $newline_restricted_tokens = ['break', 'contiue', 'return', 'throw'];
+
+		private function allow_wrap_or_preserved_newline($force_linewrap=null) {
+			$force_linewrap = ($force_linewrap === null) ? false : $force_linewrap;
+
+			// Never wrap the first token on a line
+			if ($this->output->just_added_newline()) {
+				return;
+			}
+
+			$shouldPreserveOrForce = ($this->opt["preserve_newlines"] && $this->current_token->wanted_newline) || force_linewrap;
+			$operatorLogicApplies = in_array($this->flags->last_text, Tokenizer::$positionable_operators) || in_array($this->current_token->text, Tokenizer::$positionable_operators);
+
+			if ($operatorLogicApplies) {
+				$shouldPrintOperatorNewline = (
+						in_array($this->flags->last_text, Tokenizer::$positionable_operators) &&
+						in_array($this->opt["operator_position"], OPERATOR_POSITION_BEFORE_OR_PRESERVE)
+					) ||
+					in_array($this->current_token->text, Tokenizer::$positionable_operators);
+				$shouldPreserveOrForce = $shouldPreserveOrForce && $shouldPrintOperatorNewline;
+			}
+
+			if ($shouldPreserveOrForce) {
+				$this->print_newline(false, true);
+			} else if ($this->opt["wrap_line_length"]) {
+				if ($this->last_type === 'TK_RESERVED' && in_array($this->flags->last_text, $this->newline_restricted_tokens)) {
+					// These tokens should never have a newline inserted
+					// between them and the following expression.
+					return;
+				}
+				$proposed_line_length = $this->output->current_line->get_character_count() + strlen($this->current_token->text) +
+					($this->output->space_before_token ? 1 : 0);
+				if ($proposed_line_length >= $this->opt["wrap_line_length"]) {
+					$this->print_newline(false, true);
+				}
+			}
+		}
+
+		private function print_newline($force_newline=false, $preserve_statement_flags=false) {
+			if (!$preserve_statement_flags) {
+				if ($this->flags->last_text !== ';' && $this->flags->last_text !== ',' && $this->flags->last_text !== '=' && $this->last_type !== 'TK_OPERATOR') {
+					while ($this->flags->mode === MODE::Statement && !$this->flags->if_block && !$this->flags->do_block) {
+						$this->restore_mode();
+					}
+				}
+			}
+
+			if ($this->output->add_new_line($force_newline)) {
+				$this->flags->multiline_frame = true;
+			}
+		}
+
+		private function print_token($printable_token=null) {
+			if ($this->output->raw) {
+				$this->output->add_raw_token($this->current_token);
+				return;
+			}
+
+			if ($this->opt["comma_first"] && $this->last_type === 'TK_COMMA' &&
+				$this->output->just_added_newline()) {
+				if ($this->output->previous_line->last() === ',') {
+					$popped = $this->output->previous_line->pop();
+					// if the comma was already at the start of the line,
+					// pull back onto that line and reprint the indentation
+					if ($this->output->previous_line->is_empty()) {
+						$this->output->previous_line->push(popped);
+						$this->output->trim(true);
+						$this->output->current_line.pop();
+						$this->output->trim();
+					}
+
+					// add the comma in front of the next token
+					$this->print_token_line_indentation();
+					$this->output->add_token(',');
+					$this->output->space_before_token = true;
+				}
+			}
+
+			$printable_token = $printable_token || $this->current_token->text;
+			$this->print_token_line_indentation();
+			$this->output->add_token($printable_token);
+		}
+
+		private function indent() {
+			$this->flags->indentation_level += 1;
+		}
+
+		private function deindent() {
+			if ($this->flags->indentation_level > 0 &&
+				((!$this->flags->parent) || $this->flags->indentation_level > $this->flags->parent->indentation_level)) {
+				$this->flags->indentation_level -= 1;
+			}
+		}
+
+		private function set_mode($mode) {
+			if ($this->flags) {
+				$this->flag_store->push($this->flags);
+				$this->previous_flags = $this->flags;
+			} else {
+				$this->previous_flags = $this->create_flags(null, $mode);
+			}
+
+			$this->flags = $this->create_flags($this->previous_flags, $mode);
+		}
+		
+		private function is_array($mode) {
+			return $mode === MODE::ArrayLiteral;
+		}
+
+		private function is_expression($mode) {
+			return in_array($mode, [MODE::Expression, MODE::ForInitializer, MODE::Conditional]);
+		}
+
+		private function restore_mode() {
+			if ($this->flag_store->length > 0) {
+				$this->previous_flags = $this->flags;
+				$this->flags = $this->flag_store->pop();
+				if ($this->previous_flags->mode === MODE::Statement) {
+					$this->output->remove_redundant_indentation($this->previous_flags);
+				}
+			}
+		}
+
+		function start_of_object_property() {
+			return $this->flags->parent->mode === MODE::ObjectLiteral && $this->flags->mode === MODE::Statement && (
+				($this->flags->last_text === ':' && $this->flags->ternary_depth === 0) || ($this->last_type === 'TK_RESERVED' && in_array($this->flags->last_text, ['get', 'set'])));
+		}
+
+		private function start_of_statement() {
+			if (
+				($this->last_type === 'TK_RESERVED' && in_array($this->flags-last_text, ['var', 'let', 'const']) && $this->current_token->type === 'TK_WORD') ||
+				($this->last_type === 'TK_RESERVED' && $this->flags->last_text === 'do') ||
+				($this->last_type === 'TK_RESERVED' && in_array($this->flags->last_text, ['return', 'throw']) && !$this->current_token->wanted_newline) ||
+				($this->last_type === 'TK_RESERVED' && $this->flags->last_text === 'else' && !($this->current_token->type === 'TK_RESERVED' && $this->current_token->text === 'if')) ||
+				($this->last_type === 'TK_END_EXPR' && ($this->previous_flags->mode === MODE::ForInitializer || $this->previous_flags->mode === MODE::Conditional)) ||
+				($this->last_type === 'TK_WORD' && $this->flags->mode === MODE::BlockStatement && !$this->flags->in_case && !($this->current_token->text === '--' || $this->current_token->text === '++') &&
+					$this->last_last_text !== 'function' &&
+					$this->current_token->type !== 'TK_WORD' && $this->current_token->type !== 'TK_RESERVED') ||
+				($this->flags->mode === MODE::ObjectLiteral && (
+						($this->flags->last_text === ':' && $this->flags->ternary_depth === 0) || ($this->last_type === 'TK_RESERVED' && in_array($this->flags->last_text, ['get', 'set']))))
+			) {
+
+				$this->set_mode(MODE::Statement);
+				$this->indent();
+
+				if ($this->last_type === 'TK_RESERVED' && in_array($this->flags->last_text, ['var', 'let', 'const']) && $this->current_token->type === 'TK_WORD') {
+					$this->flags->declaration_statement = true;
+				}
+
+				// Issue #276:
+				// If starting a new statement with [if, for, while, do], push to a new line.
+				// if (a) if (b) if(c) d(); else e(); else f();
+				if (!$this->start_of_object_property()) {
+					$this->allow_wrap_or_preserved_newline(
+						$this->current_token->type === 'TK_RESERVED' && in_array($this->current_token->text, ['do', 'for', 'if', 'while']));
+				}
+
+				return true;
+			}
+			return false;
+		}
+
+		private function all_lines_start_with(array $lines, $c) {
+			for ($i = 0; $i < count($lines); $i++) {
+				$line = trim($lines[$i]);
+				if (substr($line,0,1) !== $c) {
+					return false;
+				}
+			}
+            return true;
+        }
+
+		private function each_line_matches_indent(array $lines, $indent) {
+			$i = 0;
+			$len = count($lines);
+			$line=0;
+            for (; $i < $len; $i++) {
+				$line = $lines[$i];
+				// allow empty lines to pass through
+				if ($line && strpos($line,$indent) !== 0) {
+					return false;
+				}
+			}
+            return true;
+        }
+
+		private function is_special_word($word) {
+			return in_array($word, ['case', 'return', 'do', 'if', 'throw', 'else']);
+		}
+
+		private function get_token($offset) {
+			$index = $this->token_pos + ($offset || 0);
+			return ($index < 0 || $index >= count($this->tokens)) ? null : $this->tokens[$index];
+		}
+
+		private function handle_start_expr() {
+			if ($this->start_of_statement()) {
+				// The conditional starts the statement if appropriate.
+			}
+
+			$next_mode = MODE::Expression;
+			if ($this->current_token->text === '[') {
+
+				if ($this->last_type === 'TK_WORD' || $this->flags->last_text === ')') {
+					// this is array index specifier, break immediately
+					// a[x], fn()[x]
+					if ($this->last_type === 'TK_RESERVED' && in_array($this->flags->last_text, Tokenizer::$line_starters)) {
+						$this->output->space_before_token = true;
+					}
+					$this->set_mode($next_mode);
+					$this->print_token();
+					$this->indent();
+					if ($this->opt["space_in_paren"]) {
+						$this->output->space_before_token = true;
+					}
+					return;
+				}
+
+				$next_mode = MODE::ArrayLiteral;
+				if ($this->is_array($this->flags->mode)) {
+					if ($this->flags->last_text === '[' ||
+						($this->flags->last_text === ',' && ($this->last_last_text === ']' || $this->last_last_text === '}'))) {
+						// ], [ goes to new line
+						// }, [ goes to new line
+						if (!$this->opt->keep_array_indentation) {
+							$this->print_newline();
+						}
+					}
+				}
+
+			} else {
+				if ($this->last_type === 'TK_RESERVED' && $this->flags->last_text === 'for') {
+					$next_mode = MODE::ForInitializer;
+				} else if ($this->last_type === 'TK_RESERVED' && in_array($this->flags->last_text, ['if', 'while'])) {
+					$next_mode = MODE::Conditional;
+				} else {
+					// next_mode = MODE.Expression;
+				}
+			}
+
+			if ($this->flags->last_text === ';' || $this->last_type === 'TK_START_BLOCK') {
+				$this->print_newline();
+			} else if ($this->last_type === 'TK_END_EXPR' || $this->last_type === 'TK_START_EXPR' || $this->last_type === 'TK_END_BLOCK' || $this->flags->last_text === '.') {
+				// TODO: Consider whether forcing this is required.  Review failing tests when removed.
+				$this->allow_wrap_or_preserved_newline($this->current_token->wanted_newline);
+				// do nothing on (( and )( and ][ and ]( and .(
+			} else if (!($this->last_type === 'TK_RESERVED' && $this->current_token->text === '(') && $this->last_type !== 'TK_WORD' && $this->last_type !== 'TK_OPERATOR') {
+				$this->output->space_before_token = true;
+			} else if (($this->last_type === 'TK_RESERVED' && ($this->flags->last_word === 'function' || $this->flags->last_word === 'typeof')) ||
+				($this->flags->last_text === '*' && $this->last_last_text === 'function')) {
+				// function() vs function ()
+				if ($this->opt["space_after_anon_function"]) {
+					$this->output->space_before_token = true;
+				}
+			} else if ($this->last_type === 'TK_RESERVED' && (in_array($this->flags->last_text, Tokenizer::$line_starters) || $this->flags->last_text === 'catch')) {
+				if ($this->opt["space_before_conditional"]) {
+					$this->output->space_before_token = true;
+				}
+			}
+
+			// Should be a space between await and an IIFE
+			if ($this->current_token->text === '(' && $this->last_type === 'TK_RESERVED' && $this->flags->last_word === 'await') {
+				$this->output->space_before_token = true;
+			}
+
+			// Support of this kind of newline preservation.
+			// a = (b &&
+			//     (c || d));
+			if ($this->current_token->text === '(') {
+				if ($this->last_type === 'TK_EQUALS' || $this->last_type === 'TK_OPERATOR') {
+					if (!$this->start_of_object_property()) {
+						$this->allow_wrap_or_preserved_newline();
+					}
+				}
+			}
+
+			// Support preserving wrapped arrow function expressions
+			// a.b('c',
+			//     () => d.e
+			// )
+			if ($this->current_token->text === '(' && $this->last_type !== 'TK_WORD' && $this->last_type !== 'TK_RESERVED') {
+				$this->allow_wrap_or_preserved_newline();
+			}
+
+			$this->set_mode($next_mode);
+			$this->print_token();
+			if ($this->opt["space_in_paren"]) {
+				$this->output->space_before_token = true;
+			}
+
+			// In all cases, if we newline while inside an expression it should be indented.
+			$this->indent();
+		}
+
+		private function handle_start_block() {
+			// Check if this is should be treated as a ObjectLiteral
+			$next_token = $this->get_token(1);
+			$second_token = $this->get_token(2);
+			if ($second_token && (
+					(in_array($second_token->text, [':', ',']) && in_array($next_token->type, ['TK_STRING', 'TK_WORD', 'TK_RESERVED'])) ||
+					(in_array($next_token->text, ['get', 'set']) && in_array($second_token->type, ['TK_WORD', 'TK_RESERVED']))
+				)) {
+				// We don't support TypeScript,but we didn't break it for a very long time.
+				// We'll try to keep not breaking it.
+				if (!in_array($this->last_last_text, ['class', 'interface'])) {
+					set_mode(MODE::ObjectLiteral);
+				} else {
+					set_mode(MODE::BlockStatement);
+				}
+			} else if ($this->last_type === 'TK_OPERATOR' && $this->flags->last_text === '=>') {
+				// arrow function: (param1, paramN) => { statements }
+				$this->set_mode(MODE::BlockStatement);
+			} else if (in_array($this->last_type, ['TK_EQUALS', 'TK_START_EXPR', 'TK_COMMA', 'TK_OPERATOR']) ||
+				($this->last_type === 'TK_RESERVED' && in_array($this->flags->last_text, ['return', 'throw', 'import']))
+			) {
+				// Detecting shorthand function syntax is difficult by scanning forward,
+				//     so check the surrounding context.
+				// If the block is being returned, imported, passed as arg,
+				//     assigned with = or assigned in a nested object, treat as an ObjectLiteral.
+				$this->set_mode(MODE::ObjectLiteral);
+			} else {
+				$this->set_mode(MODE::BlockStatement);
+			}
+
+			$empty_braces = !$next_token->comments_before->length && $next_token->text === '}';
+			$empty_anonymous_function = $empty_braces && $this->flags->last_word === 'function' &&
+				$this->last_type === 'TK_END_EXPR';
+
+
+			if ($this->opt["brace_style"] === "expand" ||
+				($this->opt["brace_style"] === "none" && $this->current_token->wanted_newline)) {
+				if ($this->last_type !== 'TK_OPERATOR' &&
+					($empty_anonymous_function ||
+						$this->last_type === 'TK_EQUALS' ||
+						($this->last_type === 'TK_RESERVED' && $this->is_special_word($this->flags->last_text) && $this->flags->last_text !== 'else'))) {
+					$this->output->space_before_token = true;
+				} else {
+					$this->print_newline(false, true);
+				}
+			} else { // collapse
+				if ($this->opt["brace_style"] === 'collapse-preserve-inline') {
+					// search forward for a newline wanted inside this block
+					$index = 0;
+					$check_token = null;
+					$this->flags->inline_frame = true;
+					do {
+						Tindex += 1;
+						$check_token = $this->get_token(index);
+						if ($check_token->wanted_newline) {
+							$this->flags->inline_frame = false;
+							break;
+						}
+					} while ($check_token->type !== 'TK_EOF' && !($check_token->type === 'TK_END_BLOCK' && $check_token->opened === $this->current_token));
+				}
+
+				if ($this->is_array($this->previous_flags->mode) && ($this->last_type === 'TK_START_EXPR' || $this->last_type === 'TK_COMMA')) {
+					// if we're preserving inline,
+					// allow newline between comma and next brace.
+					if ($this->last_type === 'TK_COMMA' || $this->opt["space_in_paren"]) {
+						$this->output->space_before_token = true;
+					}
+
+					if ($this->opt["brace_style"] === 'collapse-preserve-inline' &&
+						($this->last_type === 'TK_COMMA' || ($this->last_type === 'TK_START_EXPR' && $this->flags->inline_frame))) {
+						$this->allow_wrap_or_preserved_newline();
+						$this->previous_flags->multiline_frame = $this->previous_flags->multiline_frame || $this->flags->multiline_frame;
+						$this->flags->multiline_frame = false;
+					}
+				} else if ($this->last_type !== 'TK_OPERATOR' && $this->last_type !== 'TK_START_EXPR') {
+					if ($this->last_type === 'TK_START_BLOCK') {
+						$this->print_newline();
+					} else {
+						$this->output->space_before_token = true;
+					}
+				}
+			}
+			$this->print_token();
+			$this->indent();
+		}
+
+		private function handle_end_block() {
+			// statements must all be closed when their container closes
+			while ($this->flags.mode === MODE::Statement) {
+				$this->restore_mode();
+			}
+			$empty_braces = $this->last_type === 'TK_START_BLOCK';
+
+			if ($this->opt->brace_style === "expand") {
+				if (!$empty_braces) {
+					$this->print_newline();
+				}
+			} else {
+				// skip {}
+				if (!$empty_braces) {
+					if ($this->flags->inline_frame) {
+						$this->output->space_before_token = true;
+					} else if ($this->is_array($this->flags.mode) && $this->opt["keep_array_indentation"]) {
+						// we REALLY need a newline here, but newliner would skip that
+						$this->opt["keep_array_indentation"] = false;
+						$this->print_newline();
+						$this->opt["keep_array_indentation"] = true;
+
+					} else {
+						$this->print_newline();
+					}
+				}
+			}
+			$this->restore_mode();
+			$this->print_token();
+		}
+
 	}
 }
