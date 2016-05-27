@@ -38,7 +38,11 @@ namespace beautify\utils{
 		public function exec($string){
 
 		}
-		
+
+		/**
+		 * @param $text
+		 * @return bool
+		 */
 		public function match($text){
 		
 		}
@@ -54,7 +58,7 @@ namespace beautify\utils{
 
 		}
 		public function getPattern(){
-			return $this->regexp.$this->modifier;t
+			return $this->regexp.$this->modifier;
 		}
 		public function __get($name) {
 			switch ($name){
@@ -88,8 +92,8 @@ namespace beautify\acorn{
 		return $_newline;
 	}
 	
-	$_lineBreak = new RegExp('\r\n|' + newline->source);
-	$_allLineBreaks = new RegExp(lineBreak->source, 'g');
+	$_lineBreak = new RegExp('\r\n|' . $_newline->source);
+	$_allLineBreaks = new RegExp($_lineBreak->source, 'g');
 	
 	/**
 	 * @return RegExp
@@ -133,8 +137,6 @@ namespace beautify\acorn{
 }
 namespace beautify{
 
-	acorn\newline->test()
-	
 	use beautify\utils\RegExp;
 
 	\beautify\acorn\INIT;
@@ -147,7 +149,7 @@ namespace beautify{
 	function sanitizeOperatorPosition($opPosition) {
 		$opPosition = $opPosition || OPERATOR_POSITION::before_newline;
 
-		$validPositionValues = array_values(OPERATOR_POSITION);
+		$validPositionValues = OPERATOR_POSITION::getValues();
 
 		if (!in_array($opPosition, $validPositionValues)) {
 			throw new \Error("Invalid Option Value: The option 'operator_position' must be one of the following values\n" .
@@ -162,6 +164,11 @@ namespace beautify{
 		const before_newline = 'before-newline',
 			after_newline = 'after-newline',
 			preserve_newline = 'preserve-newline';
+		public static function getValues(){
+			return [
+				self::before_newline,self::after_newline,self::preserve_newline
+			];
+		}
 	}
 
     const OPERATOR_POSITION_BEFORE_OR_PRESERVE = [OPERATOR_POSITION::before_newline, OPERATOR_POSITION::preserve_newline];
@@ -334,13 +341,16 @@ namespace beautify{
 
 		public function beautify(){
 			$this->Tokenizer = new tokenizer($this->js_source_text, $this->opt, $this->indent_string);
-			$this->tokens = $this->Tokenizer.tokenize();
+			$this->tokens = $this->Tokenizer->tokenize();
 			$this->Tokenizer = 0;
 
+			/**
+			 * @var Token $local_token
+			 */
 			$local_token=null;
 
 			function get_local_token() use(&$local_token) {
-				$local_token = get_token();
+				$local_token = $this->get_token();
 				return $local_token;
 			}
 
@@ -425,15 +435,15 @@ namespace beautify{
 				return;
 			}
 
-			$shouldPreserveOrForce = ($this->opt["preserve_newlines"] && $this->current_token->wanted_newline) || force_linewrap;
-			$operatorLogicApplies = in_array($this->flags->last_text, Tokenizer::$positionable_operators) || in_array($this->current_token->text, Tokenizer::$positionable_operators);
+			$shouldPreserveOrForce = ($this->opt["preserve_newlines"] && $this->current_token->wanted_newline) || $force_linewrap;
+			$operatorLogicApplies = in_array($this->flags->last_text, $this->Tokenizer->positionable_operators) || in_array($this->current_token->text, $this->Tokenizer->positionable_operators);
 
 			if ($operatorLogicApplies) {
 				$shouldPrintOperatorNewline = (
-						in_array($this->flags->last_text, Tokenizer::$positionable_operators) &&
+						in_array($this->flags->last_text, $this->Tokenizer->positionable_operators) &&
 						in_array($this->opt["operator_position"], OPERATOR_POSITION_BEFORE_OR_PRESERVE)
 					) ||
-					in_array($this->current_token->text, Tokenizer::$positionable_operators);
+					in_array($this->current_token->text, $this->Tokenizer->positionable_operators);
 				$shouldPreserveOrForce = $shouldPreserveOrForce && $shouldPrintOperatorNewline;
 			}
 
@@ -480,9 +490,9 @@ namespace beautify{
 					// if the comma was already at the start of the line,
 					// pull back onto that line and reprint the indentation
 					if ($this->output->previous_line->is_empty()) {
-						$this->output->previous_line->push(popped);
+						$this->output->previous_line->push($popped);
 						$this->output->trim(true);
-						$this->output->current_line.pop();
+						$this->output->current_line->pop();
 						$this->output->trim();
 					}
 
@@ -511,7 +521,7 @@ namespace beautify{
 
 		private function set_mode($mode) {
 			if ($this->flags) {
-				$this->flag_store->push($this->flags);
+				$this->flag_store[]=$this->flags;
 				$this->previous_flags = $this->flags;
 			} else {
 				$this->previous_flags = $this->create_flags(null, $mode);
@@ -529,9 +539,9 @@ namespace beautify{
 		}
 
 		private function restore_mode() {
-			if ($this->flag_store->length > 0) {
+			if (count($this->flag_store) > 0) {
 				$this->previous_flags = $this->flags;
-				$this->flags = $this->flag_store->pop();
+				$this->flags = array_pop($this->flag_store);
 				if ($this->previous_flags->mode === MODE::Statement) {
 					$this->output->remove_redundant_indentation($this->previous_flags);
 				}
@@ -545,7 +555,7 @@ namespace beautify{
 
 		private function start_of_statement() {
 			if (
-				($this->last_type === 'TK_RESERVED' && in_array($this->flags-last_text, ['var', 'let', 'const']) && $this->current_token->type === 'TK_WORD') ||
+				($this->last_type === 'TK_RESERVED' && in_array($this->flags->last_text, ['var', 'let', 'const']) && $this->current_token->type === 'TK_WORD') ||
 				($this->last_type === 'TK_RESERVED' && $this->flags->last_text === 'do') ||
 				($this->last_type === 'TK_RESERVED' && in_array($this->flags->last_text, ['return', 'throw']) && !$this->current_token->wanted_newline) ||
 				($this->last_type === 'TK_RESERVED' && $this->flags->last_text === 'else' && !($this->current_token->type === 'TK_RESERVED' && $this->current_token->text === 'if')) ||
@@ -605,8 +615,8 @@ namespace beautify{
 			return in_array($word, ['case', 'return', 'do', 'if', 'throw', 'else']);
 		}
 
-		private function get_token($offset) {
-			$index = $this->token_pos + ($offset || 0);
+		private function get_token($offset=0) {
+			$index = $this->token_pos + $offset;
 			return ($index < 0 || $index >= count($this->tokens)) ? null : $this->tokens[$index];
 		}
 
@@ -621,7 +631,7 @@ namespace beautify{
 				if ($this->last_type === 'TK_WORD' || $this->flags->last_text === ')') {
 					// this is array index specifier, break immediately
 					// a[x], fn()[x]
-					if ($this->last_type === 'TK_RESERVED' && in_array($this->flags->last_text, Tokenizer::$line_starters)) {
+					if ($this->last_type === 'TK_RESERVED' && in_array($this->flags->last_text, $this->Tokenizer->line_starters)) {
 						$this->output->space_before_token = true;
 					}
 					$this->set_mode($next_mode);
@@ -669,7 +679,7 @@ namespace beautify{
 				if ($this->opt["space_after_anon_function"]) {
 					$this->output->space_before_token = true;
 				}
-			} else if ($this->last_type === 'TK_RESERVED' && (in_array($this->flags->last_text, Tokenizer::$line_starters) || $this->flags->last_text === 'catch')) {
+			} else if ($this->last_type === 'TK_RESERVED' && (in_array($this->flags->last_text, $this->Tokenizer->line_starters) || $this->flags->last_text === 'catch')) {
 				if ($this->opt["space_before_conditional"]) {
 					$this->output->space_before_token = true;
 				}
@@ -720,9 +730,9 @@ namespace beautify{
 				// We don't support TypeScript,but we didn't break it for a very long time.
 				// We'll try to keep not breaking it.
 				if (!in_array($this->last_last_text, ['class', 'interface'])) {
-					set_mode(MODE::ObjectLiteral);
+					$this->set_mode(MODE::ObjectLiteral);
 				} else {
-					set_mode(MODE::BlockStatement);
+					$this->set_mode(MODE::BlockStatement);
 				}
 			} else if ($this->last_type === 'TK_OPERATOR' && $this->flags->last_text === '=>') {
 				// arrow function: (param1, paramN) => { statements }
@@ -761,8 +771,8 @@ namespace beautify{
 					$check_token = null;
 					$this->flags->inline_frame = true;
 					do {
-						Tindex += 1;
-						$check_token = $this->get_token(index);
+						$index += 1;
+						$check_token = $this->get_token($index);
 						if ($check_token->wanted_newline) {
 							$this->flags->inline_frame = false;
 							break;
@@ -797,7 +807,7 @@ namespace beautify{
 
 		private function handle_end_block() {
 			// statements must all be closed when their container closes
-			while ($this->flags.mode === MODE::Statement) {
+			while ($this->flags->mode === MODE::Statement) {
 				$this->restore_mode();
 			}
 			$empty_braces = $this->last_type === 'TK_START_BLOCK';
@@ -811,7 +821,7 @@ namespace beautify{
 				if (!$empty_braces) {
 					if ($this->flags->inline_frame) {
 						$this->output->space_before_token = true;
-					} else if ($this->is_array($this->flags.mode) && $this->opt["keep_array_indentation"]) {
+					} else if ($this->is_array($this->flags->mode) && $this->opt["keep_array_indentation"]) {
 						// we REALLY need a newline here, but newliner would skip that
 						$this->opt["keep_array_indentation"] = false;
 						$this->print_newline();
@@ -828,9 +838,9 @@ namespace beautify{
 		
 		private function handle_word() {
 			if ($this->current_token->type === 'TK_RESERVED') {
-				if ($this->in_array($this->current_token->text, ['set', 'get']) && $this->flags->mode !== MODE::ObjectLiteral) {
+				if (in_array($this->current_token->text, ['set', 'get']) && $this->flags->mode !== MODE::ObjectLiteral) {
 					$this->current_token->type = 'TK_WORD';
-				} else if ($this->in_array($this->current_token->text, ['as', 'from']) && !$this->flags->import_block) {
+				} else if (in_array($this->current_token->text, ['as', 'from']) && !$this->flags->import_block) {
 					$this->current_token->type = 'TK_WORD';
 				} else if ($this->flags->mode === MODE::ObjectLiteral) {
 					$next_token = $this->get_token(1);
@@ -845,7 +855,7 @@ namespace beautify{
 			} else if ($this->current_token->wanted_newline && !$this->is_expression($this->flags->mode) &&
 				($this->last_type !== 'TK_OPERATOR' || ($this->flags->last_text === '--' || $this->flags->last_text === '++')) &&
 				$this->last_type !== 'TK_EQUALS' &&
-				($this->opt["preserve_newlines"] || !($this->last_type === 'TK_RESERVED' && $this->in_array($this->flags->last_text, ['var', 'let', 'const', 'set', 'get'])))) {
+				($this->opt["preserve_newlines"] || !($this->last_type === 'TK_RESERVED' && in_array($this->flags->last_text, ['var', 'let', 'const', 'set', 'get'])))) {
 
 				$this->print_newline();
 			}
@@ -874,7 +884,7 @@ namespace beautify{
 					$this->flags->else_block = true;
 				} else {
 					while ($this->flags->mode === MODE::Statement) {
-						restore_mode();
+						$this->restore_mode();
 					}
 					$this->flags->if_block = false;
 					$this->flags->else_block = false;
@@ -895,23 +905,23 @@ namespace beautify{
 			}
 
 			if ($this->current_token->type === 'TK_RESERVED' && $this->current_token->text === 'function') {
-				if ($this->in_array($this->flags->last_text, ['}', ';']) || ($this->output->just_added_newline() && !$this->in_array($this->flags->last_text, ['[', '{', ':', '=', ',']))) {
+				if (in_array($this->flags->last_text, ['}', ';']) || ($this->output->just_added_newline() && !in_array($this->flags->last_text, ['[', '{', ':', '=', ',']))) {
 					// make sure there is a nice clean space of at least one blank line
 					// before a new function definition
-					if (!$this->output->just_added_blankline() && !$this->current_token->comments_before.length) {
+					if (!$this->output->just_added_blankline() && !count($this->current_token->comments_before)) {
 						$this->print_newline();
 						$this->print_newline(true);
 					}
 				}
 				if ($this->last_type === 'TK_RESERVED' || $this->last_type === 'TK_WORD') {
-					if ($this->last_type === 'TK_RESERVED' && $this->in_array($this->flags->last_text, ['get', 'set', 'new', 'return', 'export', 'async'])) {
+					if ($this->last_type === 'TK_RESERVED' && in_array($this->flags->last_text, ['get', 'set', 'new', 'return', 'export', 'async'])) {
 						$this->output->space_before_token = true;
 					} else if ($this->last_type === 'TK_RESERVED' && $this->flags->last_text === 'default' && $this->last_last_text === 'export') {
 						$this->output->space_before_token = true;
 					} else {
 						$this->print_newline();
 					}
-				} else if (last_type === 'TK_OPERATOR' || flags.last_text === '=') {
+				} else if ($this->last_type === 'TK_OPERATOR' || $this->flags->last_text === '=') {
 					// foo = function
 					$this->output->space_before_token = true;
 				} else if (!$this->flags->multiline_frame && ($this->is_expression($this->flags->mode) || $this->is_array($this->flags->mode))) {
@@ -929,7 +939,7 @@ namespace beautify{
 
 			if ($this->current_token->type === 'TK_RESERVED' && in_array($this->current_token->text, ['function', 'get', 'set'])) {
 				$this->print_token();
-				$this->flags->last_word = current_token.text;
+				$this->flags->last_word = $this->current_token->text;
 				return;
 			}
 
@@ -970,7 +980,7 @@ namespace beautify{
 				$this->prefix = 'NEWLINE';
 			}
 
-			if ($this->current_token->type === 'TK_RESERVED' && in_array($this->current_token->text, Tokenizer::$line_starters) && $this->flags->last_text !== ')') {
+			if ($this->current_token->type === 'TK_RESERVED' && in_array($this->current_token->text, $this->Tokenizer->line_starters) && $this->flags->last_text !== ')') {
 				if ($this->flags->last_text === 'else' || $this->flags->last_text === 'export') {
 					$this->prefix = 'SPACE';
 				} else {
@@ -1009,7 +1019,7 @@ namespace beautify{
 							$this->print_newline();
 						}
 					}
-				} else if ($this->current_token->type === 'TK_RESERVED' && in_array($this->current_token->text, Tokenizer::$line_starters) && $this->flags->last_text !== ')') {
+				} else if ($this->current_token->type === 'TK_RESERVED' && in_array($this->current_token->text, $this->Tokenizer->line_starters) && $this->flags->last_text !== ')') {
 					$this->print_newline();
 				}
 			} else if ($this->flags->multiline_frame && is_array($this->flags->mode) && $this->flags->last_text === ',' && $this->last_last_text === '}') {
@@ -1085,7 +1095,7 @@ namespace beautify{
 			$this->print_token();
 			$this->output->space_before_token = true;
 			if ($this->flags->declaration_statement) {
-				if ($this->is_expression($this->flags->parent.mode)) {
+				if ($this->is_expression($this->flags->parent->mode)) {
 					// do not break on comma, for(var a = 1, b = 2)
 					$this->flags->declaration_assignment = false;
 				}
@@ -1099,8 +1109,8 @@ namespace beautify{
 					$this->allow_wrap_or_preserved_newline();
 				}
 			} else if ($this->flags->mode === MODE::ObjectLiteral ||
-				($this->flags->mode === MODE::Statement && $this->flags->parent.mode === MODE::ObjectLiteral)) {
-				if (flags.mode === MODE.Statement) {
+				($this->flags->mode === MODE::Statement && $this->flags->parent->mode === MODE::ObjectLiteral)) {
+				if ($this->flags->mode === MODE::Statement) {
 					$this->restore_mode();
 				}
 
@@ -1161,7 +1171,7 @@ namespace beautify{
 			$isGeneratorAsterisk = $this->current_token->text === '*' && $this->last_type === 'TK_RESERVED' && $this->flags->last_text === 'function';
 			$isUnary = in_array($this->current_token->text, ['-', '+']) && (
 					in_array($this->last_type, ['TK_START_BLOCK', 'TK_START_EXPR', 'TK_EQUALS', 'TK_OPERATOR']) ||
-					in_array($this->flags->last_text, Tokenizer::$line_starters) ||
+					in_array($this->flags->last_text, $this->Tokenizer->line_starters) ||
 					$this->flags->last_text === ','
 				);
 
@@ -1180,8 +1190,8 @@ namespace beautify{
 			// let's handle the operator_position option prior to any conflicting logic
 			if (!$isUnary && !$isGeneratorAsterisk && $this->opt["preserve_newlines"] && in_array($this->current_token->text, Tokenizer::$positionable_operators)) {
 				$isColon = $this->current_token->text === ':';
-				$isTernaryColon = (isColon && in_ternary);
-				$isOtherColon = (isColon && !in_ternary);
+				$isTernaryColon = ($isColon && $in_ternary);
+				$isOtherColon = ($isColon && !$in_ternary);
 
 				switch ($this->opt["operator_position"]) {
 					case OPERATOR_POSITION::before_newline:
@@ -1256,7 +1266,7 @@ namespace beautify{
 					$space_before = true;
 				} else if ($this->last_type === 'TK_END_EXPR') {
 					$space_before = !($this->flags->last_text === ']' && ($this->current_token->text === '--' || $this->current_token->text === '++'));
-				} else if (last_type === 'TK_OPERATOR') {
+				} else if ($this->last_type === 'TK_OPERATOR') {
 					// a++ + ++b;
 					// a - -b
 					$space_before = in_array($this->current_token->text, ['--', '-', '++', '+']) && in_array($this->flags->last_text, ['--', '-', '++', '+']);
@@ -1288,7 +1298,7 @@ namespace beautify{
 		private function handle_block_comment() {
 			if ($this->output->raw) {
 				$this->output->add_raw_token($this->current_token);
-				if ($this->current_token->directives && $this->current_token->directives.preserve === 'end') {
+				if ($this->current_token->directives && $this->current_token->directives->preserve === 'end') {
 					// If we're testing the raw output behavior, do not allow a directive to turn it off.
 					$this->output->raw = $this->opt->test_output_raw;
 				}
@@ -1298,7 +1308,7 @@ namespace beautify{
 			if ($this->current_token->directives) {
 				$this->print_newline(false, true);
 				$this->print_token();
-				if ($this->current_token->directives.preserve === 'start') {
+				if ($this->current_token->directives->preserve === 'start') {
 					$this->output->raw = true;
 				}
 				$this->print_newline(false, true);
@@ -1306,7 +1316,7 @@ namespace beautify{
 			}
 
 			// inline block
-			if (!$this->acorn->newline.test($this->current_token->text) && !$this->current_token->wanted_newline) {
+			if (!\beautify\acorn\newline()->test($this->current_token->text) && !$this->current_token->wanted_newline) {
 				$this->output->space_before_token = true;
 				$this->print_token();
 				$this->output->space_before_token = true;
@@ -1314,17 +1324,17 @@ namespace beautify{
 			}
 
 			$lines = $this->split_linebreaks($this->current_token->text);
-			$j; // iterator for this case
+			$j=0; // iterator for this case
 			$javadoc = false;
 			$starless = false;
 			$lastIndent = $this->current_token->whitespace_before;
-			$lastIndentLength = $this->lastIndent->length;
+			$lastIndentLength = $lastIndent->length;
 
 			// block comment starts with a new line
 			$this->print_newline(false, true);
-			if ($lines->length > 1) {
+			if (count($lines) > 1) {
 				$javadoc = $this->all_lines_start_with(array_slice($lines,1), '*');
-				$starless = $this->each_line_matches_indent(array_slice(lines,1), $lastIndent);
+				$starless = $this->each_line_matches_indent(array_slice($lines,1), $lastIndent);
 			}
 
 			// first line always indented
@@ -1333,7 +1343,7 @@ namespace beautify{
 				$this->print_newline(false, true);
 				if ($javadoc) {
 					// javadoc: reformat and re-indent
-					$this->print_token(' ' + ltrim($lines[$j]));
+					$this->print_token(' ' . ltrim($lines[$j]));
 				} else if ($starless && count($lines[$j]) > $lastIndentLength) {
 					// starless: re-indent non-empty content, avoiding trim
 					$this->print_token(substr($lines[$j],$lastIndentLength));
@@ -1436,10 +1446,10 @@ namespace beautify{
 			$item = null;
 			if (!$this->_empty) {
 				$item = array_pop($this->_items);
-				$this->_character_count -= strlen(item);
+				$this->_character_count -= strlen($item);
 				$this->_empty = count($this->_items) === 0;
 			}
-			return item;
+			return $item;
 		}
 
 		public function remove_indent() {
@@ -1459,13 +1469,13 @@ namespace beautify{
 
 		public function toString() {
 			$result = '';
-			if (!$this._empty) {
+			if (!$this->_empty) {
 				if ($this->_indent_count >= 0) {
 					$result = $this->parent->indent_cache[$this->_indent_count];
 				}
 				$result += join("",$this->_items);
 			}
-			return result;
+			return $result;
 		}
 	}
 	
@@ -1479,6 +1489,9 @@ namespace beautify{
 		private $lines = [];
 		public $indent_string;
 		public $previous_line = null;
+		/**
+		 * @var OutputLine $current_line
+		 */
 		public $current_line = null;
 		public $space_before_token = false;
 
@@ -1509,7 +1522,7 @@ namespace beautify{
 			}
 
 			if ($force_newline || !$this->this->just_added_newline()) {
-				if (!$this.raw) {
+				if (!$this->raw) {
 					$this->add_outputline();
 				}
 				return true;
@@ -1520,7 +1533,7 @@ namespace beautify{
 		
 		public function get_code() {
 			$sweet_code = preg_replace("/[\r\n\t ]+$/",'',join('\n', $this->lines));
-            return sweet_code;
+            return $sweet_code;
         }
 		
 		public function set_indent($level) {
@@ -1530,10 +1543,10 @@ namespace beautify{
 					$this->indent_cache[]=$this->indent_cache[count($this->indent_cache) - 1] + $this->indent_string);
 				}
 
-				$this->current_line.set_indent($level);
+				$this->current_line->set_indent($level);
 				return true;
 			}
-			$this->current_line.set_indent(0);
+			$this->current_line->set_indent(0);
 			return false;
 		}
 		
@@ -1588,14 +1601,14 @@ namespace beautify{
 				$this->current_line->is_empty()) {
 				array_pop($this->lines);
 				$this->current_line = $this->lines[count($this->lines) - 1];
-				$this->current_line.trim();
+				$this->current_line->trim();
 			}
 
 			$this->previous_line = count($this->lines) > 1 ? $this->lines[count($this->lines) - 2] : null;
 		}
 		
 		public function just_added_newline() {
-			return $this->current_line.is_empty();
+			return $this->current_line->is_empty();
 		}
 		
 		public function just_added_blankline() {
@@ -1635,30 +1648,30 @@ namespace beautify{
 	
 	class tokenizer{
 
-		private $whitespace = preg_split('',"\n\r\t ");
-		private $digit = new RegExp("/[0-9]/");
-		private $digit_bin = new RegExp("/[01]/");
-		private $digit_oct = new RegExp("/[01234567]/");
-		private $digit_hex = new RegExp("/[0123456789abcdefABCDEF]/");
+		private $whitespace;
+		private $digit;
+		private $digit_bin;
+		private $digit_oct;
+		private $digit_hex;
 
-		public $positionable_operators = preg_split(' ','!= !== % & && * ** + - / : < << <= == === > >= >> >>> ? ^ | ||');
+		public $positionable_operators;
 
 		private $punct = [];
 		
-		public $line_starters = preg_split(',','continue,try,throw,return,var,let,const,if,switch,case,default,for,while,break,function,import,export');
+		public $line_starters;
 
 		private $reserved_words = [];
 		//  /* ... */ comment ends with nearest */ or end of file
-		private $block_comment_pattern = new RegExp('/([\s\S]*?)((?:\*\/)|$)/',"g");
+		private $block_comment_pattern;
 		
 		// comment ends just before nearest linefeed or end of file
-		private $comment_pattern = new RegExp('/([^\n\r\u2028\u2029]*)/',"g");
+		private $comment_pattern;
 
-		private $directives_block_pattern = new RegExp('/\/\* beautify( \w+[:]\w+)+ \*\//',"g");
-		private $directive_pattern = new RegExp('/ (\w+)[:](\w+)/',"g");
-		private $directives_end_ignore_pattern = new RegExp('/([\s\S]*?)((?:\/\*\sbeautify\signore:end\s\*\/)|$)/',"g");
+		private $directives_block_pattern;
+		private $directive_pattern;
+		private $directives_end_ignore_pattern;
 		
-		private $template_pattern = new RegExp('/((<\?php|<\?=)[\s\S]*?\?>)|(<%[\s\S]*?%>)/',"g");
+		private $template_pattern;
 		
 		private $n_newlines, $whitespace_before_token, $in_html_comment, $tokens, $parser_pos;
 		private $input_length;
@@ -1668,6 +1681,20 @@ namespace beautify{
 		
 		
 		public function __construct($input, $opts){
+			$this->whitespace = preg_split('',"\n\r\t ");
+			$this->digit = new RegExp("/[0-9]/");
+			$this->digit_bin = new RegExp("/[01]/");
+			$this->digit_oct = new RegExp("/[01234567]/");
+			$this->digit_oct = new RegExp("/[0123456789abcdefABCDEF]/");
+			$this->positionable_operators = preg_split(' ','!= !== % & && * ** + - / : < << <= == === > >= >> >>> ? ^ | ||');
+			$this->line_starters = preg_split(',','continue,try,throw,return,var,let,const,if,switch,case,default,for,while,break,function,import,export');
+			$this->block_comment_pattern = new RegExp('/([\s\S]*?)((?:\*\/)|$)/',"g");
+			$this->comment_pattern = new RegExp('/([^\n\r\u2028\u2029]*)/',"g");
+			$this->directives_block_pattern = new RegExp('/\/\* beautify( \w+[:]\w+)+ \*\//',"g");
+			$this->directive_pattern = new RegExp('/ (\w+)[:](\w+)/',"g");
+			$this->directives_end_ignore_pattern = new RegExp('/([\s\S]*?)((?:\/\*\sbeautify\signore:end\s\*\/)|$)/',"g");
+			$this->template_pattern = new RegExp('/((<\?php|<\?=)[\s\S]*?\?>)|(<%[\s\S]*?%>)/',"g");
+
 			$this->punct = array_merge($this->positionable_operators,
 				// non-positionable operators - these do not follow operator position settings
 				preg_split(' ','! %= &= *= **= ++ += , -- -= /= :: <<= = => >>= >>>= ^= |= ~')	
@@ -1686,9 +1713,18 @@ namespace beautify{
 			$this->in_html_comment = false;
 			$this->tokens = [];
 
-			$next;
-			$last;
-            $token_values;
+			/**
+			 * @var Token $next
+			 */
+			$next=null;
+			/**
+			 * @var Token $last
+			 */
+			$last=null;
+            $token_values=[];
+			/**
+			 * @var Token $open
+			 */
             $open = null;
             $open_stack = [];
             $comments = [];
@@ -1729,7 +1765,7 @@ namespace beautify{
 				$last = $next;
 			}
 
-            return $tokens;
+            return $this->tokens;
         }
 		
 		private function get_directives($text) {//TODO:test it
@@ -1751,7 +1787,7 @@ namespace beautify{
 		
 		private function tokenize_next() {
 		
-			$resulting_string;
+			$resulting_string="";
 			$whitespace_on_this_line = [];
 
 			$this->n_newlines = 0;
@@ -1761,7 +1797,10 @@ namespace beautify{
 				return ['', 'TK_EOF'];
 			}
 
-			$last_token;
+			/**
+			 * @var Token $last_token
+			 */
+			$last_token=null;
 			if (count($this->tokens)) {
 				$last_token = $this->tokens[count($this->tokens) - 1];
 			} else {
@@ -1792,7 +1831,7 @@ namespace beautify{
 				$this->parser_pos += 1;
 			}
 
-			if ($whitespace_on_this_line.length) {
+			if (strlen($whitespace_on_this_line)) {
 				$this->whitespace_before_token = join('',$whitespace_on_this_line);
 			}
 
@@ -1801,7 +1840,7 @@ namespace beautify{
 				$allow_e = true;
 				$local_digit = $this->digit;
 
-				if ($c === '0' && $this->parser_pos < $this->input_length && (new RegExp('/[XxOoBb]/'))->test(substr($this->input,parser_pos,1))) {
+				if ($c === '0' && $this->parser_pos < $this->input_length && (new RegExp('/[XxOoBb]/'))->test(substr($this->input, $this->parser_pos,1))) {
 					// switch to hex/oct/bin number, no decimal or e, just hex/oct/bin digits
 					$allow_decimal = false;
 					$allow_e = false;
@@ -1825,18 +1864,18 @@ namespace beautify{
 
                 // Add the digits
                 while ($this->parser_pos < $this->input_length && $local_digit->test(substr($this->input, $this->parser_pos,1))) {
-					$c += substr($this->input,parser_pos,1);
+					$c += substr($this->input, $this->parser_pos,1);
 					$this->parser_pos += 1;
 
 					if ($allow_decimal && $this->parser_pos < $this->input_length && substr($this->input, $this->parser_pos,1) === '.') {
 						$c += substr($this->input, $this->parser_pos,1);
 						$this->parser_pos += 1;
 						$allow_decimal = false;
-					} else if ($allow_e && $this->parser_pos < $this->input_length && (new RegExp('/[Ee]/'))->test(substr($this->input,parser_pos,1))) {
+					} else if ($allow_e && $this->parser_pos < $this->input_length && (new RegExp('/[Ee]/'))->test(substr($this->input, $this->parser_pos,1))) {
 						$c += substr($this->input, $this->parser_pos,1);
 						$this->parser_pos += 1;
 
-						if ($this->parser_pos < $this->input_length && (new RegExp('/[+-]/'))->test(substr($this->input,parser_pos,1))) {
+						if ($this->parser_pos < $this->input_length && (new RegExp('/[+-]/'))->test(substr($this->input, $this->parser_pos,1))) {
 							$c += substr($this->input, $this->parser_pos,1);
 							$this->parser_pos += 1;
 						}
@@ -1860,8 +1899,8 @@ namespace beautify{
 					}
 				}
 
-				if (!($this->last_token->type === 'TK_DOT' ||
-						($this->last_token->type === 'TK_RESERVED' && in_array($this->last_token->text, ['set', 'get']))) &&
+				if (!($last_token->type === 'TK_DOT' ||
+						($last_token->type === 'TK_RESERVED' && in_array($last_token->text, ['set', 'get']))) &&
 					in_array($c, $this->reserved_words)) {
 					if ($c === 'in') { // hack for 'in' operator
 						return [$c, 'TK_OPERATOR'];
@@ -1894,13 +1933,13 @@ namespace beautify{
 
 			if ($c === '/') {
 				$comment = '';
-				$comment_match;
+				$comment_match=[];
 				// peek for comment /* ... */
-				if (substr($this->input,parser_pos,1) === '*') {
+				if (substr($this->input, $this->parser_pos,1) === '*') {
 					$this->parser_pos += 1;
 					$this->block_comment_pattern->lastIndex = $this->parser_pos;
 					$comment_match = $this->block_comment_pattern->exec($this->input);
-					$comment = '/*' + $comment_match[0];
+					$comment = '/*' . $comment_match[0];
 					$this->parser_pos += count($comment_match[0]);
 					$directives = $this->get_directives($comment);
 					if ($directives && $directives->ignore === 'start') {
@@ -1909,15 +1948,15 @@ namespace beautify{
 						$comment += $comment_match[0];
 						$this->parser_pos += count($comment_match[0]);
 					}
-					$comment = preg_replace(\beautify\acorn\allLineBreaks()->getPattern(),'\n');
+					$comment = preg_replace(\beautify\acorn\allLineBreaks()->getPattern(),'\n',$comment);
 					return [$comment, 'TK_BLOCK_COMMENT', $directives];
 				}
 				// peek for comment // ...
 				if (substr($this->input, $this->parser_pos,1) === '/') {
 					$this->parser_pos += 1;
-					$this->comment_pattern>lastIndex = $this->parser_pos;
+					$this->comment_pattern->lastIndex = $this->parser_pos;
 					$comment_match = $this->comment_pattern->exec($this->input);
-					$comment = '//' + $comment_match[0];
+					$comment = '//' . $comment_match[0];
 					$this->parser_pos += count($comment_match[0]);
 					return [$comment, 'TK_COMMENT'];
 				}
@@ -1933,7 +1972,7 @@ namespace beautify{
                 ) && ( // regex and xml can only appear in specific locations during parsing
                     ($last_token->type === 'TK_RESERVED' && in_array($last_token->text, ['return', 'case', 'throw', 'else', 'do', 'typeof', 'yield'])) ||
                     ($last_token->type === 'TK_END_EXPR' && $last_token->text === ')' &&
-                    $last_token->parent && $last_token->parent.type === 'TK_RESERVED' && in_array($last_token->parent->text, ['if', 'while', 'for'])) ||
+                    $last_token->parent && $last_token->parent->type === 'TK_RESERVED' && in_array($last_token->parent->text, ['if', 'while', 'for'])) ||
                     (in_array($last_token->type, ['TK_COMMENT', 'TK_START_EXPR', 'TK_START_BLOCK',
                         'TK_END_BLOCK', 'TK_OPERATOR', 'TK_EQUALS', 'TK_EOF', 'TK_SEMICOLON', 'TK_COMMA'
                     ]))
@@ -1943,16 +1982,15 @@ namespace beautify{
 				$esc = false;
 				$has_char_escapes = false;
 
-                $resulting_string = c;
+                $resulting_string = $c;
 
                 if ($sep === '/') {
                     //
                     // handle regexp
                     //
-                    $in_char_class = false;
-				} else if (opts.e4x && sep === '<') {
+					$in_char_class = false;
 					while ($this->parser_pos < $this->input_length &&
-						(($esc || $in_char_class || substr($this->input, $this->parser_pos,1) !== $sep) && !\beautify\acorn\newline()->test(substr($this->input,parser_pos,1)))) {
+						(($esc || $in_char_class || substr($this->input, $this->parser_pos,1) !== $sep) && !\beautify\acorn\newline()->test(substr($this->input, $this->parser_pos,1)))) {
 						$resulting_string += substr($this->input, $this->parser_pos,1);
 						if (!$esc) {
 							$esc = substr($this->input, $this->parser_pos,1) === '\\';
@@ -1966,13 +2004,14 @@ namespace beautify{
 						}
 						$this->parser_pos += 1;
 					}
+				} else if ($this->opts->e4x && $sep === '<') {
 					//
                     // handle e4x xml literals
                     //
 
                     $xmlRegExp = new RegExp('/<(\/?)([-a-zA-Z:0-9_.]+|{.+?}|!\[CDATA\[[\s\S]*?\]\])(\s+{.+?}|\s+[-a-zA-Z:0-9_.]+|\s+[-a-zA-Z:0-9_.]+\s*=\s*(\'[^\']*\'|"[^"]*"|{.+?}))*\s*(\/?)\s*>/',"g");
                     $xmlStr = substr($this->input, $this->parser_pos - 1);
-                    $match = xmlRegExp->exec($xmlStr);
+                    $match = $xmlRegExp->exec($xmlStr);
                     if ($match && key($match) === 0) { //TODO: test if key is same as array index in js
                         $rootTag = $match[2];
                         $depth = 0;
@@ -2005,7 +2044,7 @@ namespace beautify{
                     $parse_string = function ($delimiter, $allow_unescaped_newlines=false, $start_sub='') use (&$resulting_string,&$has_char_escapes,&$esc,&$parse_string) {
                         // Template strings can travers lines without escape characters.
                         // Other strings cannot
-                        $current_char;
+                        $current_char='';
                         while ($this->parser_pos < $this->input_length) {
                             $current_char = substr($this->input, $this->parser_pos,1);
                             if (!($esc || ($current_char !== $delimiter &&
@@ -2019,7 +2058,7 @@ namespace beautify{
 									$this->parser_pos += 1;
                                     $current_char = substr($this->input, $this->parser_pos,1);
                                 }
-                                $resulting_string += '\n';
+                                $resulting_string .= '\n';
                             } else {
                                 $resulting_string += $current_char;
                             }
@@ -2034,7 +2073,7 @@ namespace beautify{
 
 							$this->parser_pos += 1;
 
-                            if ($start_sub && strpos($resulting_string,start_sub, strlen($resulting_string) - strlen($start_sub)) !== -1) {
+                            if ($start_sub && strpos($resulting_string,$start_sub, strlen($resulting_string) - strlen($start_sub)) !== -1) {
                                 if ($delimiter === '`') {
                                     $parse_string('}', $allow_unescaped_newlines, '`');
                                 } else {
@@ -2056,13 +2095,13 @@ namespace beautify{
                 }
 
                 if ($this->parser_pos < $this->input_length && substr($this->input, $this->parser_pos,1) === $sep) {
-                    $resulting_string += $sep;
+                    $resulting_string .= $sep;
 					$this->parser_pos += 1;
 
                     if ($sep === '/') {
                         // regexps may have modifiers /regexp/MOD , so fetch those, too
                         // Only [gim] are valid, but if the user puts in garbage, do what we can to take it.
-                        while ($this->parser_pos < $this->input_length && \beautify\acorn\isIdentifierStart(substr($this->input,parser_pos,1))) {
+                        while ($this->parser_pos < $this->input_length && \beautify\acorn\isIdentifierStart(substr($this->input, $this->parser_pos,1))) {
                             $resulting_string += substr($this->input, $this->parser_pos,1);
 							$this->parser_pos += 1;
                         }
@@ -2081,7 +2120,7 @@ namespace beautify{
 					$resulting_string += $c;
 					$this->parser_pos += 1;
 				}
-				return [trim($resulting_string) + '\n', 'TK_UNKNOWN'];
+				return [trim($resulting_string) . '\n', 'TK_UNKNOWN'];
 			}
 			
 			
@@ -2098,10 +2137,10 @@ namespace beautify{
 					if ($c === '#') {
 						//
 					} else if (substr($this->input, $this->parser_pos,1) === '[' && substr($this->input, $this->parser_pos + 1,1) === ']') {
-						$sharp += '[]';
-						T	parser_pos += 2;
+						$sharp .= '[]';
+						$this->parser_pos += 2;
 					} else if (SUBSTR($this->input, $this->parser_pos,1) === '{' && substr($this->input, $this->parser_pos + 1,1) === '}') {
-						$sharp += '{}';
+						$sharp .= '{}';
 						$this->parser_pos += 2;
 					}
 					return [$sharp, 'TK_WORD'];
@@ -2110,7 +2149,7 @@ namespace beautify{
 			
 				if ($c === '<' && (substr($this->input, $this->parser_pos,1) === '?' || substr($this->input, $this->parser_pos,1) === '%')) {
 					$this->template_pattern->lastIndex = $this->parser_pos - 1;
-					$template_match = $this->template_pattern->exec(input);
+					$template_match = $this->template_pattern->exec($this->input);
 					if ($template_match) {
 						$c = $template_match[0];
 						$this->parser_pos += strlen($c) - 1;
