@@ -399,9 +399,9 @@ if (!Object.values) {
             var local_token, sweet_code;
             Tokenizer = new tokenizer(js_source_text, opt, indent_string);
             tokens = Tokenizer.tokenize();
-            token_pos = 0;
+            token_pos = 0; 
 
-            function get_local_token() {
+            function get_local_token() { 
                 local_token = get_token();
                 return local_token;
             }
@@ -415,9 +415,9 @@ if (!Object.values) {
                 }
                 handle_token(local_token);
 
-                last_last_text = flags.last_text;
+                last_last_text = flags.last_text; 
                 last_type = local_token.type;
-                flags.last_text = local_token.text;
+                flags.last_text = local_token.text; 
 
                 token_pos += 1;
             }
@@ -431,7 +431,7 @@ if (!Object.values) {
                 sweet_code = sweet_code.replace(/[\n]/g, opt.eol);
             }
 
-            return sweet_code;
+            return sweet_code; 
         };
 
         function handle_token(local_token) {

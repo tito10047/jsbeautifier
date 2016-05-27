@@ -147,6 +147,8 @@ namespace beautify{
 
 		private $opt;
 		private $baseIndentString = '';
+
+		private $js_source_text;
 		
 		
 		
@@ -224,7 +226,7 @@ namespace beautify{
 				}
 			}
 
-			$this->opt["eol"] = str_replace(["/\\r/","/\\n/"],['\r','\n'],$this->opt["eol"]);
+			$this->opt["eol"] = preg_replace(["/\\r/","/\\n/"],['\r','\n'],$this->opt["eol"]);
 
 			$indent_string = '';
 			while ($this->opt["indent_size"] > 0) {
@@ -250,6 +252,8 @@ namespace beautify{
 			$this->flag_store = [];
 
 			$this->set_mode(MODE["BlockStatement"]);
+
+			$this->js_source_text = $js_source_text;
 		}
 
 		private function create_flags(array $flags_base, $mode) {
@@ -288,7 +292,43 @@ namespace beautify{
 		}
 
 		public function beautify(){
-			
+			$this->Tokenizer = new tokenizer($this->js_source_text, $this->opt, $this->indent_string);
+			$this->tokens = $this->Tokenizer.tokenize();
+			$this->Tokenizer = 0;
+
+			$local_token=null;
+
+			function get_local_token() use(&$local_token) {
+				$local_token = get_token();
+				return $local_token;
+			}
+
+			while (get_local_token()) {
+				for ($i = 0; $i < count($local_token->comments_before); $i++) {//TODO: check if comments_before is string or array
+					// The cleanest handling of inline comments is to treat them as though they aren't there.
+					// Just continue formatting and the behavior should be logical.
+					// Also ignore unknown tokens.  Again, this should result in better behavior.
+					handle_token($local_token->comments_before[$i]);
+				}
+                handle_token($local_token);
+
+				$this->last_last_text = $this->flags->last_text;
+				$this->last_type = $local_token->type;
+				$this->flags->last_text = $local_token->text;
+
+                $this->token_pos += 1;
+            }
+
+			$sweet_code = $this->output->get_code();
+			if ($this->opt["end_with_newline"]) {
+				$sweet_code .= '\n';
+			}
+
+			if ($this->opt["eol"] !== '\n') {
+				$sweet_code = preg_replace("/[\n]/g", $this->opt["eol"],$sweet_code);
+            }
+
+			return $sweet_code;
 		}
 	}
 }
