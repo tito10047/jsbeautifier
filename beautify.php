@@ -1788,7 +1788,7 @@ namespace beautify{
 					return ['', 'TK_EOF'];
 				}
 
-				$c = substr($this->input,parser_pos,1);
+				$c = substr($this->input, $this->parser_pos,1);
 				$this->parser_pos += 1;
 			}
 
@@ -1796,7 +1796,7 @@ namespace beautify{
 				$this->whitespace_before_token = join('',$whitespace_on_this_line);
 			}
 
-			if ($this->digit->test($c) || ($c === '.' && $this->digit->test(substr($this->input,parser_pos,1)))) {
+			if ($this->digit->test($c) || ($c === '.' && $this->digit->test(substr($this->input, $this->parser_pos,1)))) {
 				$allow_decimal = true;
 				$allow_e = true;
 				$local_digit = $this->digit;
@@ -1805,14 +1805,14 @@ namespace beautify{
 					// switch to hex/oct/bin number, no decimal or e, just hex/oct/bin digits
 					$allow_decimal = false;
 					$allow_e = false;
-					if ((new RegExp('/[Bb]/'))->test(substr($this->input,parser_pos,1))) {
+					if ((new RegExp('/[Bb]/'))->test(substr($this->input, $this->parser_pos,1))) {
 						$local_digit = $this->digit_bin;
-					} else if ((new RegExp('/[Oo]/'))->test(substr($this->input,parser_pos,1))) {
+					} else if ((new RegExp('/[Oo]/'))->test(substr($this->input, $this->parser_pos,1))) {
 						$local_digit = $this->digit_oct;
 					} else {
 						$local_digit = $this->digit_hex;
 					}
-                    $c += substr($this->input,parser_pos,1);
+                    $c += substr($this->input, $this->parser_pos,1);
 					$this->parser_pos += 1;
                 } else if ($c === '.') {
 					// Already have a decimal for this literal, don't allow another
@@ -1824,20 +1824,20 @@ namespace beautify{
 				}
 
                 // Add the digits
-                while ($this->parser_pos < $this->input_length && $local_digit->test(substr($this->input,parser_pos,1))) {
+                while ($this->parser_pos < $this->input_length && $local_digit->test(substr($this->input, $this->parser_pos,1))) {
 					$c += substr($this->input,parser_pos,1);
 					$this->parser_pos += 1;
 
-					if ($allow_decimal && $this->parser_pos < $this->input_length && substr($this->input,parser_pos,1) === '.') {
-						$c += substr($this->input,parser_pos,1);
+					if ($allow_decimal && $this->parser_pos < $this->input_length && substr($this->input, $this->parser_pos,1) === '.') {
+						$c += substr($this->input, $this->parser_pos,1);
 						$this->parser_pos += 1;
 						$allow_decimal = false;
 					} else if ($allow_e && $this->parser_pos < $this->input_length && (new RegExp('/[Ee]/'))->test(substr($this->input,parser_pos,1))) {
-						$c += substr($this->input,parser_pos,1);
+						$c += substr($this->input, $this->parser_pos,1);
 						$this->parser_pos += 1;
 
 						if ($this->parser_pos < $this->input_length && (new RegExp('/[+-]/'))->test(substr($this->input,parser_pos,1))) {
-							$c += substr($this->input,parser_pos,1);
+							$c += substr($this->input, $this->parser_pos,1);
 							$this->parser_pos += 1;
 						}
 
@@ -1849,10 +1849,10 @@ namespace beautify{
                 return [$c, 'TK_WORD'];
             }
 
-			if (\beautify\acorn\isIdentifierStart(substr($this->input,parser_pos - 1,1))) {
+			if (\beautify\acorn\isIdentifierStart(substr($this->input, $this->parser_pos - 1,1))) {
 				if ($this->parser_pos < $this->input_length) {
-					while (\beautify\acorn\isIdentifierChar(substr($this->input,parser_pos,1))) {
-						$c += substr($this->input,parser_pos,1);
+					while (\beautify\acorn\isIdentifierChar(substr($this->input, $this->parser_pos,1))) {
+						$c += substr($this->input, $this->parser_pos,1);
 						$this->parser_pos += 1;
 						if ($this->parser_pos === $this->input_length) {
 							break;
@@ -1952,13 +1952,13 @@ namespace beautify{
                     $in_char_class = false;
 				} else if (opts.e4x && sep === '<') {
 					while ($this->parser_pos < $this->input_length &&
-						(($esc || $in_char_class || substr($this->input,parser_pos,1) !== $sep) && !\beautify\acorn\newline()->test(substr($this->input,parser_pos,1)))) {
-						$resulting_string += substr($this->input,parser_pos,1);
+						(($esc || $in_char_class || substr($this->input, $this->parser_pos,1) !== $sep) && !\beautify\acorn\newline()->test(substr($this->input,parser_pos,1)))) {
+						$resulting_string += substr($this->input, $this->parser_pos,1);
 						if (!$esc) {
-							$esc = substr($this->input,parser_pos,1) === '\\';
-							if (substr($this->input,parser_pos,1) === '[') {
+							$esc = substr($this->input, $this->parser_pos,1) === '\\';
+							if (substr($this->input, $this->parser_pos,1) === '[') {
 								$in_char_class = true;
-							} else if (substr($this->input,parser_pos,1) === ']') {
+							} else if (substr($this->input, $this->parser_pos,1) === ']') {
 								$in_char_class = false;
 							}
 						} else {
@@ -1971,7 +1971,7 @@ namespace beautify{
                     //
 
                     $xmlRegExp = new RegExp('/<(\/?)([-a-zA-Z:0-9_.]+|{.+?}|!\[CDATA\[[\s\S]*?\]\])(\s+{.+?}|\s+[-a-zA-Z:0-9_.]+|\s+[-a-zA-Z:0-9_.]+\s*=\s*(\'[^\']*\'|"[^"]*"|{.+?}))*\s*(\/?)\s*>/',"g");
-                    $xmlStr = substr($this->input,parser_pos - 1);
+                    $xmlStr = substr($this->input, $this->parser_pos - 1);
                     $match = xmlRegExp->exec($xmlStr);
                     if ($match && key($match) === 0) { //TODO: test if key is same as array index in js
                         $rootTag = $match[2];
@@ -2002,12 +2002,12 @@ namespace beautify{
                     //
                     // handle string
                     //
-                    $parse_string = function ($delimiter, $allow_unescaped_newlines, $start_sub) use (&$resulting_string,&$has_char_escapes,&$esc) {
+                    $parse_string = function ($delimiter, $allow_unescaped_newlines=false, $start_sub='') use (&$resulting_string,&$has_char_escapes,&$esc,&$parse_string) {
                         // Template strings can travers lines without escape characters.
                         // Other strings cannot
                         $current_char;
                         while ($this->parser_pos < $this->input_length) {
-                            $current_char = substr($this->input,parser_pos,1);
+                            $current_char = substr($this->input, $this->parser_pos,1);
                             if (!($esc || ($current_char !== $delimiter &&
                                 ($allow_unescaped_newlines || !\beautify\acorn\newline()->test($current_char))))) {
                                 break;
@@ -2015,9 +2015,9 @@ namespace beautify{
 
                             // Handle \r\n linebreaks after escapes or in template strings
                             if (($esc || $allow_unescaped_newlines) && \beautify\acorn\newline()->test($current_char)) {
-                                if ($current_char === '\r' && substr($this->input,parser_pos + 1,1) === '\n') {
+                                if ($current_char === '\r' && substr($this->input, $this->parser_pos + 1,1) === '\n') {
 									$this->parser_pos += 1;
-                                    $current_char = substr($this->input,parser_pos,1);
+                                    $current_char = substr($this->input, $this->parser_pos,1);
                                 }
                                 $resulting_string += '\n';
                             } else {
@@ -2044,121 +2044,121 @@ namespace beautify{
                         }
                     };
 
-                    if (sep === '`') {
-                        parse_string('`', true, '${');
+                    if ($sep === '`') {
+                        $parse_string('`', true, '${');
                     } else {
-                        parse_string(sep);
+                        $parse_string($sep);
                     }
                 }
 
-                if (has_char_escapes && opts.unescape_strings) {
-                    resulting_string = unescape_string(resulting_string);
+                if ($has_char_escapes && $this->opts["unescape_strings"]) {
+                    $resulting_string = $this->unescape_string($resulting_string);
                 }
 
-                if (parser_pos < input_length && input.charAt(parser_pos) === sep) {
-                    resulting_string += sep;
-                    parser_pos += 1;
+                if ($this->parser_pos < $this->input_length && substr($this->input, $this->parser_pos,1) === $sep) {
+                    $resulting_string += $sep;
+					$this->parser_pos += 1;
 
-                    if (sep === '/') {
+                    if ($sep === '/') {
                         // regexps may have modifiers /regexp/MOD , so fetch those, too
                         // Only [gim] are valid, but if the user puts in garbage, do what we can to take it.
-                        while (parser_pos < input_length && acorn.isIdentifierStart(input.charCodeAt(parser_pos))) {
-                            resulting_string += input.charAt(parser_pos);
-                            parser_pos += 1;
+                        while ($this->parser_pos < $this->input_length && \beautify\acorn\isIdentifierStart(substr($this->input,parser_pos,1))) {
+                            $resulting_string += substr($this->input, $this->parser_pos,1);
+							$this->parser_pos += 1;
                         }
                     }
                 }
-                return [resulting_string, 'TK_STRING'];
+                return [$resulting_string, 'TK_STRING'];
             }
 
-            if (c === '#') {
+            if ($c === '#') {
 			
-				if (tokens.length === 0 && input.charAt(parser_pos) === '!') {
+				if (count($this->tokens) === 0 && substr($this->input, $this->parser_pos,1) === '!') {
 					// shebang
-				resulting_string = c;
-				while (parser_pos < input_length && c !== '\n') {
-				c = input.charAt(parser_pos);
-				resulting_string += c;
-				parser_pos += 1;
+				$resulting_string = $c;
+				while ($this->parser_pos < $this->input_length && $c !== '\n') {
+					$c = substr($this->input, $this->parser_pos,1);
+					$resulting_string += $c;
+					$this->parser_pos += 1;
 				}
-				return [trim(resulting_string) + '\n', 'TK_UNKNOWN'];
+				return [trim($resulting_string) + '\n', 'TK_UNKNOWN'];
 			}
 			
 			
 				// Spidermonkey-specific sharp variables for circular references
 				// https://developer.mozilla.org/En/Sharp_variables_in_JavaScript
 				// http://mxr.mozilla.org/mozilla-central/source/js/src/jsscan.cpp around line 1935
-				var sharp = '#';
-				if (parser_pos < input_length && digit.test(input.charAt(parser_pos))) {
+				$sharp = '#';
+				if ($this->parser_pos < $this->input_length && $this->digit->test(substr($this->input, $this->parser_pos,1))) {
 					do {
-						c = input.charAt(parser_pos);
-						sharp += c;
-						parser_pos += 1;
-					} while (parser_pos < input_length && c !== '#' && c !== '=');
-					if (c === '#') {
+						$c = substr($this->input, $this->parser_pos,1);
+						$sharp += $c;
+						$this->parser_pos += 1;
+					} while ($this->parser_pos < $this->input_length && $c !== '#' && $c !== '=');
+					if ($c === '#') {
 						//
-					} else if (input.charAt(parser_pos) === '[' && input.charAt(parser_pos + 1) === ']') {
-						sharp += '[]';
-						parser_pos += 2;
-					} else if (input.charAt(parser_pos) === '{' && input.charAt(parser_pos + 1) === '}') {
-						sharp += '{}';
-						parser_pos += 2;
+					} else if (substr($this->input, $this->parser_pos,1) === '[' && substr($this->input, $this->parser_pos + 1,1) === ']') {
+						$sharp += '[]';
+						T	parser_pos += 2;
+					} else if (SUBSTR($this->input, $this->parser_pos,1) === '{' && substr($this->input, $this->parser_pos + 1,1) === '}') {
+						$sharp += '{}';
+						$this->parser_pos += 2;
 					}
-					return [sharp, 'TK_WORD'];
+					return [$sharp, 'TK_WORD'];
 				}
 			}
 			
-				if (c === '<' && (input.charAt(parser_pos) === '?' || input.charAt(parser_pos) === '%')) {
-					template_pattern.lastIndex = parser_pos - 1;
-					var template_match = template_pattern.exec(input);
-					if (template_match) {
-						c = template_match[0];
-						parser_pos += c.length - 1;
-						c = c.replace(acorn.allLineBreaks, '\n');
-						return [c, 'TK_STRING'];
+				if ($c === '<' && (substr($this->input, $this->parser_pos,1) === '?' || substr($this->input, $this->parser_pos,1) === '%')) {
+					$this->template_pattern->lastIndex = $this->parser_pos - 1;
+					$template_match = $this->template_pattern->exec(input);
+					if ($template_match) {
+						$c = $template_match[0];
+						$this->parser_pos += strlen($c) - 1;
+						$c = preg_replace(\beautify\acorn\allLineBreaks()->getPattern(),'\n',$c);
+						return [$c, 'TK_STRING'];
 					}
 				}
 			
-				if (c === '<' && input.substring(parser_pos - 1, parser_pos + 3) === '<!--') {
-					parser_pos += 3;
-					c = '<!--';
-					while (!acorn.newline.test(input.charAt(parser_pos)) && parser_pos < input_length) {
-						c += input.charAt(parser_pos);
-						parser_pos++;
+				if ($c === '<' && substr($this->input, $this->parser_pos - 1, $this->parser_pos + 3) === '<!--') {
+					$this->parser_pos += 3;
+					$c = '<!--';
+					while (!\beautify\acorn\newline()->test(substr($this->input, $this->parser_pos,1)) && $this->parser_pos < $this->input_length) {
+						$c += substr($this->input, $this->parser_pos,1);
+						$this->parser_pos++;
 					}
-					in_html_comment = true;
-					return [c, 'TK_COMMENT'];
+					$this->in_html_comment = true;
+					return [$c, 'TK_COMMENT'];
 				}
 			
-				if (c === '-' && in_html_comment && input.substring(parser_pos - 1, parser_pos + 2) === '-->') {
-					in_html_comment = false;
-					parser_pos += 2;
+				if ($c === '-' && $this->in_html_comment && substr($this->input, $this->parser_pos - 1, $this->parser_pos + 2) === '-->') {
+					$this->in_html_comment = false;
+					$this->parser_pos += 2;
 					return ['-->', 'TK_COMMENT'];
 				}
 			
-				if (c === '.') {
-					return [c, 'TK_DOT'];
+				if ($c === '.') {
+					return [$c, 'TK_DOT'];
 				}
 			
-				if (in_array(c, punct)) {
-					while (parser_pos < input_length && in_array(c + input.charAt(parser_pos), punct)) {
-						c += input.charAt(parser_pos);
-						parser_pos += 1;
-						if (parser_pos >= input_length) {
+				if (in_array($c, $this->punct)) {
+					while ($this->parser_pos < $this->input_length && in_array($c + substr($this->input, $this->parser_pos,1), $this->punct)) {
+						$c += substr($this->input, $this->parser_pos,1);
+						$this->parser_pos += 1;
+						if ($this->parser_pos >= $this->input_length) {
 							break;
 						}
 					}
 			
-					if (c === ',') {
-						return [c, 'TK_COMMA'];
-					} else if (c === '=') {
-						return [c, 'TK_EQUALS'];
+					if ($c === ',') {
+						return [$c, 'TK_COMMA'];
+					} else if ($c === '=') {
+						return [$c, 'TK_EQUALS'];
 					} else {
-						return [c, 'TK_OPERATOR'];
+						return [$c, 'TK_OPERATOR'];
 					}
 				}
 			
-				return [c, 'TK_UNKNOWN'];
+				return [$c, 'TK_UNKNOWN'];
 			}
 		
 
